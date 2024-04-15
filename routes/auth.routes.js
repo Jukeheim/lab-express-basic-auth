@@ -1,63 +1,62 @@
-const express = require('express')
-const router = express.Router()
-
-const bcrypt = require('bcryptjs')
-const User = require('./../models/User.model')
-const saltRounds = 10
-
-const { isLoggedOut } = require('../middleware/route-guard')
+const express = require('express');
+const router = express.Router();
+const bcrypt = require('bcryptjs');
+const User = require('./../models/User.model');
+const saltRounds = 10;
+const { isLoggedOut } = require('../middleware/route-guard');
 
 router.get('/register', isLoggedOut, (req, res) => {
-    res.render('auth/signup')
-})
+    res.render('auth/signup');
+});
 
-router.post('/register', isLoggedOut, (req, res, next) =>{
+router.post('/register', isLoggedOut, (req, res, next) => {
+    const { username, plainPassword } = req.body;
 
-    const{ username, plainPassword} = req.body
-    
-
-    bcrypt
-        .genSalt(saltRounds)
+    bcrypt.genSalt(saltRounds)
         .then(salt => bcrypt.hash(plainPassword, salt))
-        .then(passwordHash => User.create({username, passwordHash}))
+        .then(passwordHash => User.create({ username, password: passwordHash }))
         .then(() => res.redirect('/login'))
-        .catch(err => next(err))
-})
+        .catch(err => next(err));
+});
 
-router.get('/login', isLoggedOut, (req, res) =>{
-    res.render('auth/login')
-})
+router.get('/login', isLoggedOut, (req, res, next) => {
+    res.render('auth/login');
+});
 
 router.post('/login', isLoggedOut, (req, res, next) => {
-    const { username, password } = req.body
+    const { username, password } = req.body;
 
-    if(username.length === 0 || password.length === 0){
-        res.render('auth/login', { errorMessage: 'Required'})
-        return
+    if (!username || !password) {
+        res.render('auth/login', { errorMessage: 'Username and password are required' });
+        return;
     }
 
     User
-        .findOne({username})
+    .findOne({ username })
         .then(foundUser => {
-            if(!foundUser){
-                res.render('auth/login', {errorMessage:'Username not registered'})
-                return
-            }
-            if (bcrypt.compareSync(password, foundUser.password) === false) {
-                res.render('auth/login', { errorMessage: 'Try again' })
-                return
+            if (!foundUser) {
+                res.render('auth/login', { errorMessage: 'Username not registered' });
+                return;
             }
 
-    req.session.currentUser = foundUser
-    console.log('Welcome to hell', req.session)
-    res.redirect('/')
+            bcrypt.compare(password, foundUser.password)
+                .then(isPasswordValid => {
+                    if (!isPasswordValid) {
+                        res.render('auth/login', { errorMessage: 'Invalid password' });
+                        return;
+                    }
+
+                    req.session.currentUser = foundUser;
+                    res.redirect('/');
+                });
         })
-    .catch(err => next(err))
-})
+        .catch(err => next(err));
+});
 
 router.get('/logout', (req, res) => {
-    req.session.destroy(() => res.redirect('/'))
-})
+    req.session.destroy(() => {
+        res.redirect('/');
+    });
+});
 
 module.exports = router;
-
